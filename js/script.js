@@ -2,30 +2,65 @@
 var apiKey = "b334b35106f8ae0fa14affa96fae3ab4"
 var baseUrl = 'https://api.forecast.io/forecast/' + apiKey
 var container = document.querySelector('#container')
+var chromeSecurityCode = '?callback=?'
+
 
 var search = document.querySelector('input')
 
-search.value = "This doesn't work yet"
+search.placeholder = "Search City"
 
 var latitude = ''
 var longitude = ''
 
-var changeView = function(clickEvent) {
-	var route = window.location.hash.substr(1), 
-		routeParts = route.split('/'),
-		lat = routeParts[1], 
-		lng = routeParts[2]
-
-	var buttonEl = clickEvent.target, 
-		newView = buttonEl.value 
-	location.hash = newView + "/" + lat + "/" + lng 
+function searchNewCity (keyEvent) {
+	var inputEl = keyEvent.target
+	if (keyEvent.keyCode === 13) {
+		var newSearchQuery = inputEl.value
+		var currentCity = document.querySelector("#city")
+		currentCity.innerHTML = '<p>' +newSearchQuery+'</p>'
+		location.hash = "current/" + newSearchQuery
+		inputEl.value = ''
+	}
 }
 
+search.addEventListener('keydown',searchNewCity)
+
+
+var changeView = function(clickEvent) {
+
+	var route = window.location.hash.substring(1),
+		routeParts = route.split('/')
+		// lat = routeParts[1]
+		// lng = routeParts[2]
+		searchCity = routeParts[1]
+	var buttonClicked = clickEvent.target
+	var userSearch = buttonClicked.value
+	//location.hash = userSearch + "/" + lat + '/' + lng
+	location.hash = userSearch + "/" + searchCity
+
+	// var route = window.location.hash.substr(1), 
+	// 	routeParts = route.split('/'),
+	// 	lat = routeParts[1], 
+	// 	lng = routeParts[2]
+
+	// var buttonEl = clickEvent.target, 
+	// 	newView = buttonEl.value 
+	// location.hash = newView + "/" + lat + "/" + lng 
+}
+
+//Models--------->
 var WeatherModel = Backbone.Model.extend({
-	_generateUrl: function(lat,lng) {
+	generateUrl: function(lat,lng) {
 		this.url = "https://api.forecast.io/forecast/976151b2336a5cba8b9ad9404c7cc25e/" + lat + "," + lng + "?callback=?"
 	},
 })
+
+var SearchModel = Backbone.Model.extend({
+	generateUrl: function(city) {
+		this.url = "https://maps.googleapis.com/maps/api/geocode/json?address=" + city
+	}
+})
+//Default Views-------->
 var CurrentlyView = Backbone.View.extend({
 
 	el: "#container",
@@ -113,14 +148,75 @@ var HourlyView = Backbone.View.extend({
 		 		htmlString += '<div class="hourlyBars"><h1>'+formattedTime+'</h1><h2>' + Math.round(hour.temperature) + '\xB0F</h2><h3>' 
 		 		htmlString += hour.summary + '</h3></div>'
 	 		}
- 	htmlString += '</div>'
- 	this.el.innerHTML = htmlString	
+ 		htmlString += '</div>'
+ 		this.el.innerHTML = htmlString	
+	}
+})
+
+//Search Views---------->
+
+var CurrentSearchView = Backbone.View.extend ({
+	initialize: function(someModel) {
+		this.model = someModel
+		var boundRender = this.render.bind(this)
+		this.model.on("sync", boundRender)
+	},
+	render: function(data) {
+		console.log(data.attributes.results[0].geometry.location)
+		var lat = data.attributes.results[0].geometry.location.lat
+		var lng = data.attributes.results[0].geometry.location.lng
+		console.log(lat)
+		console.log(lng)
+		var wm = new WeatherModel()
+		wm.generateUrl(lat,lng)
+		var cv = new CurrentlyView(wm)
+		wm.fetch() 
+	}
+})
+var DailySearchView = Backbone.View.extend ({
+	initialize: function(someModel) {
+		this.model = someModel
+		var boundRender = this.render.bind(this)
+		this.model.on("sync", boundRender)
+	},
+	render: function(data) {
+		console.log(data.attributes.results[0].geometry.location)
+		var lat = data.attributes.results[0].geometry.location.lat
+		var lng = data.attributes.results[0].geometry.location.lng
+		console.log(lat)
+		console.log(lng)
+		var wm = new WeatherModel()
+		wm.generateUrl(lat,lng)
+		var cv = new DailyView(wm)
+		wm.fetch() 
+	}
+})
+var HourlySearchView = Backbone.View.extend ({
+	initialize: function(someModel) {
+		this.model = someModel
+		var boundRender = this.render.bind(this)
+		this.model.on("sync", boundRender)
+	},
+	render: function(data) {
+		console.log(data.attributes.results[0].geometry.location)
+		var lat = data.attributes.results[0].geometry.location.lat
+		var lng = data.attributes.results[0].geometry.location.lng
+		console.log(lat)
+		console.log(lng)
+		var wm = new WeatherModel()
+		wm.generateUrl(lat,lng)
+		var cv = new HourlyView(wm)
+		wm.fetch() 
 	}
 })
 
 var WeatherRouter = Backbone.Router.extend({		
 
-	routes: {														
+	routes: {	
+
+		"current/:searchCity": "handleCurrentSearchCity",
+		"daily/:searchCity": "handleDailySearchCity",
+		"hourly/:searchCity": "handleHourlySearchCity",													
 		"current/:lat/:lng": "handleCurrentWeather",				
 		"hourly/:lat/:lng": "handleHourlyWeather",															
 		"daily/:lat/:lng": "handleDailyWeather",
@@ -129,23 +225,44 @@ var WeatherRouter = Backbone.Router.extend({
 
 	handleCurrentWeather: function(lat,lng) { 
 		var wm = new WeatherModel()
-		wm._generateUrl(lat,lng)
+		wm.generateUrl(lat,lng)
 		var cv = new CurrentlyView(wm)
 		wm.fetch()
 	},
 
 	handleDailyWeather: function(lat,lng) {
 		var wm = new WeatherModel()
-		wm._generateUrl(lat,lng)
+		wm.generateUrl(lat,lng)
 		var dv = new DailyView(wm)
 		wm.fetch()
 	},
 
 	handleHourlyWeather: function(lat,lng) {
 		var wm = new WeatherModel()
-		wm._generateUrl(lat,lng)
+		wm.generateUrl(lat,lng)
 		var dv = new HourlyView(wm)
 		wm.fetch()
+	},
+
+	handleCurrentSearchCity: function(searchCity) {
+		var scm = new SearchModel()
+		scm.generateUrl(searchCity)
+		var csv = new CurrentSearchView(scm)
+		scm.fetch()
+	},
+
+	handleDailySearchCity: function(searchCity) {
+		var scm = new SearchModel()
+		scm.generateUrl(searchCity)
+		var csv = new DailySearchView(scm)
+		scm.fetch()
+	},
+
+	handleHourlySearchCity: function(searchCity) {
+		var scm = new SearchModel()
+		scm.generateUrl(searchCity)
+		var csv = new HourlySearchView(scm)
+		scm.fetch()
 	},
 
 	handleDefault: function() {
